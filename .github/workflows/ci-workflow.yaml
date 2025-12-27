@@ -118,7 +118,7 @@ jobs:
 
       - name: Set up Python
         # https://github.com/actions/setup-python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
         with:
           python-version-file: ".python-version"
 
@@ -127,7 +127,7 @@ jobs:
 
       - name: Generate & upload SBOM
         # https://github.com/anchore/sbom-action
-        uses: anchore/sbom-action@f8bdd1d8ac5e901a77a92f111440fdb1b593736b # v0.20.6
+        uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
         with:
           artifact-name: sbom-spdx.json
           dependency-snapshot: true
