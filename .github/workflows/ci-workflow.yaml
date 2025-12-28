@@ -106,9 +106,18 @@ jobs:
   test:
     name: "Run tests"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # This should cover all supported Python versions, from
+        # required-python in pyproject.toml to the version in .python-version
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
     env:
       UV_LOCKED: true
-
     steps:
       - name: Checkout repository
         # https://github.com/actions/checkout
@@ -117,6 +126,8 @@ jobs:
       - name: Install uv
         # https://github.com/astral-sh/setup-uv
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: uv sync
