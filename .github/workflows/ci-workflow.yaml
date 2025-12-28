@@ -127,6 +127,9 @@ jobs:
       - name: Pyright
         run: uv run pyright
 
+      - name: Build distribution artifacts
+        run: uv build
+
   sbom:
     name: Software Bill of Materials
     permissions:

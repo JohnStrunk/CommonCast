@@ -4,5 +4,6 @@
 /.ruff_cache/
 /.venv/
 coverage.xml
+/dist/
 htmlcov/
 __pycache__/

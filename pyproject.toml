@@ -92,7 +92,9 @@ quote-style = "double"
 pydocstyle.convention = "pep257"
 select = [
     "D",     # Pydocstyle
-    # Pydoclint disabled until it supports Sphinx-style docstrings better
+    # Pydoclint disabled until it supports Sphinx-style docstrings
+    # https://github.com/astral-sh/ruff/issues/12434
+    # https://github.com/astral-sh/ruff/pull/13286
     # "DOC",   # Pydoclint
     "E101",  # Pycodestyle: mixed spaces and tabs
     "E4",    # Pycodestyle: Imports
