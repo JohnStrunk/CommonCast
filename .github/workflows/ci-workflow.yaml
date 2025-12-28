@@ -77,7 +77,7 @@ jobs:
             CHANGED_FILES=$(git diff --name-only HEAD^..HEAD || true)
           fi
           echo "$CHANGED_FILES"
-          if echo "$CHANGED_FILES" | grep -qE '^devcontainer.json$'; then
+          if echo "$CHANGED_FILES" | grep -qE '/devcontainer.json$'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
