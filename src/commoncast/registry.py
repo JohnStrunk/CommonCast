@@ -308,7 +308,33 @@ class Registry:
             device, media, format=format, timeout=timeout, options=options
         )
 
-    async def _add_device(self, device: _types.Device) -> None:
+    def schedule_task(self, coro: Awaitable[None]) -> None:
+        """Schedule a coroutine to run on the registry's event loop (thread-safe).
+
+        :param coro: The coroutine to schedule.
+        :returns: None
+        """
+        if self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(
+                lambda: self._tasks.add(asyncio.ensure_future(coro))
+            )
+        else:
+            _LOGGER.warning("Attempted to schedule task but loop is not running")
+
+    def register_media_payload(
+        self, payload_id: str, media: _types.MediaPayload
+    ) -> str | None:
+        """Register a media payload with the embedded media server.
+
+        :param payload_id: Unique identifier for the payload.
+        :param media: The media payload to register.
+        :returns: The URL to the payload if successful, else None.
+        """
+        if self._media_server:
+            return self._media_server.register_payload(payload_id, media)
+        return None
+
+    async def register_device(self, device: _types.Device) -> None:
         """Inject a device into the registry.
 
         :param device: Device to add into the registry.
@@ -318,7 +344,7 @@ class Registry:
         ev = _events.DeviceAdded(timestamp=datetime.now(timezone.utc), device=device)
         await self._publish_event(ev)
 
-    async def _remove_device(
+    async def unregister_device(
         self, device_id: _events.DeviceID, reason: str = "lost"
     ) -> None:
         """Remove a device from the registry.

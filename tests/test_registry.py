@@ -47,7 +47,7 @@ async def test_add_list_devices(
     :returns: None
     """
     assert registry.list_devices() == []
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
     devices = registry.list_devices()
     assert len(devices) == 1
     assert devices[0].id == device.id
@@ -69,7 +69,7 @@ async def test_subscribe_async(
         events.append(ev)
 
     sub = registry.subscribe(callback)
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
 
     # Wait for event to propagate
     await asyncio.sleep(0.01)
@@ -107,7 +107,7 @@ def test_subscribe_sync(registry: _registry.Registry, device: _types.Device) -> 
     sub = registry.subscribe_sync(callback)
 
     async def trigger() -> None:
-        await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+        await registry.register_device(device)
         await asyncio.sleep(0.1)  # Wait for threadpool execution
 
     asyncio.run(trigger())
@@ -140,7 +140,7 @@ async def test_events_iterator(
                 break
 
     task = asyncio.create_task(consumer())
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
     await task
 
     assert len(events_received) == 1
@@ -162,7 +162,7 @@ async def test_lifecycle_stop_clears_devices(
     # Start again should be no-op
     await registry.start()
 
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
     assert len(registry.list_devices()) == 1
 
     events: list[_types.DeviceEvent] = []
@@ -214,7 +214,7 @@ async def test_send_media(registry: _registry.Registry, device: _types.Device) -
     assert res.reason == "device_unknown"
 
     # Known device but no adapter
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
     res = await registry.send_media(device, _types.MediaPayload.from_bytes(b""))
     assert not res.success
     assert res.reason == "adapter_not_available"
@@ -304,11 +304,11 @@ async def test_remove_device(
     :param device: The device fixture.
     :returns: None
     """
-    await registry._add_device(device)  # type: ignore[reportPrivateUsage]
+    await registry.register_device(device)
     assert len(registry.list_devices()) == 1
 
-    await registry._remove_device(device.id)  # type: ignore[reportPrivateUsage]
+    await registry.unregister_device(device.id)
     assert len(registry.list_devices()) == 0
 
     # Removing again should be safe
-    await registry._remove_device(device.id)  # type: ignore[reportPrivateUsage]
+    await registry.unregister_device(device.id)

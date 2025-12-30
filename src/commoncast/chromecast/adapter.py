@@ -144,14 +144,11 @@ class ChromecastAdapter(_types.BackendAdapter):
         self._discovered_casts.pop(uuid_val, None)
 
         # Notify registry
-        if hasattr(self._registry, "_loop") and self._registry._loop:  # type: ignore[reportPrivateUsage]
-            self._registry._loop.call_soon_threadsafe(  # type: ignore[reportPrivateUsage]
-                lambda: asyncio.create_task(
-                    self._registry._remove_device(  # type: ignore[reportPrivateUsage]
-                        _types.DeviceID(str(uuid_val)), reason="lost"
-                    )
-                )
+        self._registry.schedule_task(
+            self._registry.unregister_device(
+                _types.DeviceID(str(uuid_val)), reason="lost"
             )
+        )
 
     def _on_device_updated(self, uuid_val: uuid.UUID, name: str) -> None:
         """Handle device updated.
@@ -187,10 +184,7 @@ class ChromecastAdapter(_types.BackendAdapter):
             transport_info={"uuid": str(uuid_val)},
         )
 
-        if hasattr(self._registry, "_loop") and self._registry._loop:  # type: ignore[reportPrivateUsage]
-            self._registry._loop.call_soon_threadsafe(  # type: ignore[reportPrivateUsage]
-                lambda: asyncio.create_task(self._registry._add_device(device))  # type: ignore[reportPrivateUsage]
-            )
+        self._registry.schedule_task(self._registry.register_device(device))
 
     async def send_media(
         self,
@@ -223,15 +217,9 @@ class ChromecastAdapter(_types.BackendAdapter):
             url = media.url
             if not url:
                 # Use the embedded server
-                if (
-                    hasattr(self._registry, "_media_server")
-                    and self._registry._media_server  # type: ignore[reportPrivateUsage]
-                ):
-                    payload_id = str(uuid.uuid4())
-                    url = self._registry._media_server.register_payload(  # type: ignore[reportPrivateUsage]
-                        payload_id, media
-                    )
-                else:
+                payload_id = str(uuid.uuid4())
+                url = self._registry.register_media_payload(payload_id, media)
+                if not url:
                     return _types.SendResult(
                         success=False, reason="media_server_not_available"
                     )
