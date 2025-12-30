@@ -2,6 +2,8 @@
 
 import asyncio
 import uuid
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -179,7 +181,7 @@ async def test_send_media_missing_server(
 
     payload = _types.MediaPayload.from_bytes(b"data")
 
-    def _sync_to_thread(f: Any, *args: Any, **kwargs: Any) -> Any:
+    def _sync_to_thread(f: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return f(*args, **kwargs)
 
     with patch("asyncio.to_thread", side_effect=_sync_to_thread):
@@ -218,7 +220,7 @@ async def test_send_media_chromecast(
 
     payload = _types.MediaPayload.from_bytes(b"data", mime_type="image/png")
 
-    def _sync_to_thread(f: Any, *args: Any, **kwargs: Any) -> Any:
+    def _sync_to_thread(f: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return f(*args, **kwargs)
 
     with patch("asyncio.to_thread", side_effect=_sync_to_thread):
@@ -294,6 +296,96 @@ async def test_send_media_device_not_found(
 
 
 @pytest.mark.asyncio
+async def test_adapter_reentrant_start(
+    registry: _registry.Registry, mock_cast: MagicMock
+) -> None:
+    """Test calling start() multiple times.
+
+    :param registry: The Registry fixture.
+    :param mock_cast: The mock_cast fixture.
+    :returns: None
+    """
+    adapter = _chromecast_adapter.ChromecastAdapter(registry)
+    with patch("pychromecast.CastBrowser") as mock_browser_class:
+        await adapter.start()
+        await adapter.start()
+        assert mock_browser_class.call_count == 1
+        await adapter.stop()
+
+
+@pytest.mark.asyncio
+async def test_register_device_missing(registry: _registry.Registry) -> None:
+    """Test _register_device with missing device.
+
+    :param registry: The Registry fixture.
+    :returns: None
+    """
+    adapter = _chromecast_adapter.ChromecastAdapter(registry)
+    # Should return early without calling registry
+    with patch.object(registry, "schedule_task") as mock_schedule:
+        adapter._register_device(uuid.uuid4())  # type: ignore[reportPrivateUsage]
+        mock_schedule.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_media_guess_mime(
+    registry: _registry.Registry, mock_cast: MagicMock, tmp_path: Path
+) -> None:
+    """Test send_media guessing mime type from path.
+
+    :param registry: The Registry fixture.
+    :param mock_cast: The mock_cast fixture.
+    :param tmp_path: The tmp_path fixture.
+    :returns: None
+    """
+    adapter = _chromecast_adapter.ChromecastAdapter(registry)
+    adapter._discovered_casts[mock_cast.uuid] = mock_cast  # type: ignore[reportPrivateUsage]
+
+    test_file = tmp_path / "test.mp4"
+    test_file.write_bytes(b"data")
+
+    device = _types.Device(
+        id=_types.DeviceID(str(mock_cast.uuid)),
+        name=mock_cast.name,
+        model=mock_cast.model_name,
+        transport="chromecast",
+        capabilities=set(),
+        transport_info={"uuid": str(mock_cast.uuid)},
+    )
+
+    payload = _types.MediaPayload.from_path(test_file)
+
+    def _sync_to_thread(f: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        return f(*args, **kwargs)
+
+    with (
+        patch("asyncio.to_thread", side_effect=_sync_to_thread),
+        patch.object(registry, "register_media_payload", return_value="http://fake"),
+    ):
+        await adapter.send_media(device, payload)
+        mock_cast.media_controller.play_media.assert_called_once()
+        args, _ = mock_cast.media_controller.play_media.call_args
+        assert args[1] == "video/mp4"
+
+
+@pytest.mark.asyncio
+async def test_on_device_lost_no_browser(
+    registry: _registry.Registry, mock_cast: MagicMock
+) -> None:
+    """Test _on_device_lost when browser is None.
+
+    :param registry: The Registry fixture.
+    :param mock_cast: The mock_cast fixture.
+    :returns: None
+    """
+    adapter = _chromecast_adapter.ChromecastAdapter(registry)
+    # browser is None by default
+    adapter._discovered_casts[mock_cast.uuid] = mock_cast  # type: ignore[reportPrivateUsage]
+    adapter._on_device_lost(mock_cast.uuid, "Lost")  # type: ignore[reportPrivateUsage]
+    assert mock_cast.uuid not in adapter._discovered_casts  # type: ignore[reportPrivateUsage]
+
+
+@pytest.mark.asyncio
 async def test_media_controller(mock_cast: MagicMock) -> None:
     """Test the Chromecast media controller.
 
@@ -302,7 +394,7 @@ async def test_media_controller(mock_cast: MagicMock) -> None:
     """
     controller = _chromecast_adapter.ChromecastMediaController(mock_cast)
 
-    def _sync_to_thread(f: Any, *args: Any, **kwargs: Any) -> Any:
+    def _sync_to_thread(f: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return f(*args, **kwargs)
 
     with patch("asyncio.to_thread", side_effect=_sync_to_thread):

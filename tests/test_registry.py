@@ -295,6 +295,153 @@ async def test_publish_event_async_exception(registry: _registry.Registry) -> No
 
 
 @pytest.mark.asyncio
+async def test_registry_start_no_media(registry: _registry.Registry) -> None:
+    """Test starting registry without media server.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    await registry.start(media_host=None)
+    assert registry._media_server is None  # type: ignore[reportPrivateUsage]
+    await registry.stop()
+
+
+@pytest.mark.asyncio
+async def test_registry_stop_not_running(registry: _registry.Registry) -> None:
+    """Test stopping registry when not running.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    # Should be no-op
+    await registry.stop()
+
+
+def test_registry_backend_management_extended(registry: _registry.Registry) -> None:
+    """Test backend management for non-existent backends.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    registry.disable_backend("nonexistent")
+    backends = registry.list_backends()
+    assert backends["nonexistent"].get("enabled") is False
+
+
+def test_registry_schedule_task_not_running(registry: _registry.Registry) -> None:
+    """Test schedule_task when registry is not running.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    with patch("commoncast.registry._LOGGER.warning") as mock_warn:
+        registry.schedule_task(asyncio.sleep(0))
+        mock_warn.assert_called_once()
+
+
+def test_registry_register_media_no_server(registry: _registry.Registry) -> None:
+    """Test register_media_payload when no server is running.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    res = registry.register_media_payload("id", _types.MediaPayload())
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_registry_start_adapter_already_exists(
+    registry: _registry.Registry,
+) -> None:
+    """Test _start_adapter when adapter already exists.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    await registry.start(media_host=None)
+    # chromecast adapter should exist now
+    assert "chromecast" in registry._adapters  # type: ignore[reportPrivateUsage]
+
+    # Starting it again should return early (coverage for line 171)
+    await registry._start_adapter("chromecast")  # type: ignore[reportPrivateUsage]
+    await registry.stop()
+
+
+@pytest.mark.asyncio
+async def test_registry_custom_backend(registry: _registry.Registry) -> None:
+    """Test enabling and starting a custom backend.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    registry.enable_backend("custom")
+    # This should hit the loop but skip because "custom" isn't "chromecast"
+    # and we don't have a factory for it in _start_adapter yet.
+    # It covers lines 162-163.
+    await registry.start(media_host=None)
+    await registry.stop()
+
+
+@pytest.mark.asyncio
+async def test_registry_publish_event_subscriber_exception(
+    registry: _registry.Registry,
+) -> None:
+    """Test _publish_event handles subscriber exceptions.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+
+    async def failing_async_cb(ev: _types.DeviceEvent) -> None:
+        raise Exception("async failure")
+
+    def failing_sync_cb(ev: _types.DeviceEvent) -> None:
+        raise Exception("sync failure")
+
+    registry.subscribe(failing_async_cb)
+    registry.subscribe_sync(failing_sync_cb)
+
+    ev = _events.DeviceHeartbeat(
+        timestamp=datetime.now(timezone.utc), device_id=_types.DeviceID("dev")
+    )
+
+    # Should not raise
+    await registry._publish_event(ev)  # type: ignore[reportPrivateUsage]
+    # Give it a moment for the sync one in executor
+    await asyncio.sleep(0.1)
+
+
+@pytest.mark.asyncio
+async def test_registry_stop_with_server(registry: _registry.Registry) -> None:
+    """Test stopping registry when media server is running.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    await registry.start(media_host="127.0.0.1")
+    assert registry._media_server is not None  # type: ignore[reportPrivateUsage]
+
+    # Test stopping while running (hits coverage for cleanup)
+    await registry.stop()
+    assert registry._media_server is None  # type: ignore[reportPrivateUsage]
+
+    # Stop again should be no-op (coverage for line 222)
+    await registry.stop()
+
+
+def test_registry_disable_existing_backend(registry: _registry.Registry) -> None:
+    """Test disabling an existing backend.
+
+    :param registry: The registry fixture.
+    :returns: None
+    """
+    registry.enable_backend("test")
+    assert registry.list_backends()["test"].get("enabled") is True
+    registry.disable_backend("test")
+    assert registry.list_backends()["test"].get("enabled") is False
+
+
+@pytest.mark.asyncio
 async def test_remove_device(
     registry: _registry.Registry, device: _types.Device
 ) -> None:

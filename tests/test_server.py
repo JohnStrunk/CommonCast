@@ -1,7 +1,7 @@
 """Tests for the embedded media server."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import aiohttp
 import pytest
@@ -25,6 +25,31 @@ async def test_server_lifecycle() -> None:
     await server.start()
 
     await server.stop()
+    # Test stopping again (should be no-op)
+    await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_server_string_address() -> None:
+    """Test starting the media server with a string address reported by runner.
+
+    :returns: None
+    """
+    server = _server.MediaServer(host="127.0.0.1", port=0)
+
+    # Actually, it's easier to mock just before start
+    with patch("aiohttp.web.TCPSite.start", new_callable=AsyncMock):
+        with patch("aiohttp.web.TCPSite.stop", new_callable=AsyncMock):
+            with patch("aiohttp.web.AppRunner") as mock_runner_cls:
+                mock_runner = mock_runner_cls.return_value
+                mock_runner.addresses = ["some_string"]
+                mock_runner.setup = AsyncMock()
+                mock_runner.cleanup = AsyncMock()
+
+                await server.start()
+                # It should have passed through line 66 and used original port
+                assert server._base_url is not None  # type: ignore[reportPrivateUsage]
+                await server.stop()
 
 
 @pytest.mark.asyncio
@@ -168,6 +193,21 @@ async def test_invalid_payload() -> None:
             assert response.status == 400
 
     await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_server_bind_any() -> None:
+    """Test starting the media server bound to 0.0.0.0.
+
+    :returns: None
+    """
+    server = _server.MediaServer(host="0.0.0.0", port=0)
+    with patch.object(server, "_get_local_ip", return_value="1.2.3.4") as mock_get_ip:
+        await server.start()
+        assert server._base_url is not None  # type: ignore[reportPrivateUsage]
+        assert "1.2.3.4" in server._base_url  # type: ignore[reportPrivateUsage]
+        mock_get_ip.assert_called_once()
+        await server.stop()
 
 
 def test_get_local_ip_fallback() -> None:
