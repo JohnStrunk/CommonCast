@@ -1,5 +1,6 @@
 """Tests for the cc-discover CLI tool."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -67,9 +68,13 @@ async def test_discover_devices_with_results(capsys: CaptureFixture[str]) -> Non
 
 def test_main_success() -> None:
     """Test main function successful execution."""
+
+    def _run_mock(coro: Any) -> None:
+        coro.close()
+
     with (
         patch("argparse.ArgumentParser.parse_args") as mock_args,
-        patch("asyncio.run") as mock_run,
+        patch("asyncio.run", side_effect=_run_mock) as mock_run,
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
         mock_args.return_value = MagicMock(timeout=5.0)
@@ -83,9 +88,14 @@ def test_main_success() -> None:
 
 def test_main_keyboard_interrupt(capsys: CaptureFixture[str]) -> None:
     """Test main function handling KeyboardInterrupt."""
+
+    def _run_mock(coro: Any) -> None:
+        coro.close()
+        raise KeyboardInterrupt
+
     with (
         patch("argparse.ArgumentParser.parse_args") as mock_args,
-        patch("asyncio.run", side_effect=KeyboardInterrupt),
+        patch("asyncio.run", side_effect=_run_mock),
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
         mock_args.return_value = MagicMock(timeout=5.0)
@@ -100,9 +110,14 @@ def test_main_keyboard_interrupt(capsys: CaptureFixture[str]) -> None:
 
 def test_main_exception(capsys: CaptureFixture[str]) -> None:
     """Test main function handling generic exceptions."""
+
+    def _run_mock(coro: Any) -> None:
+        coro.close()
+        raise RuntimeError("something went wrong")
+
     with (
         patch("argparse.ArgumentParser.parse_args") as mock_args,
-        patch("asyncio.run", side_effect=RuntimeError("something went wrong")),
+        patch("asyncio.run", side_effect=_run_mock),
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
         mock_args.return_value = MagicMock(timeout=5.0)

@@ -1,6 +1,7 @@
 """Unit tests for commoncast.types module."""
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -145,8 +146,11 @@ def test_device_send_media_sync() -> None:
     )
     payload = _types.MediaPayload.from_url("http://url")
 
-    with patch("asyncio.run") as mock_run:
-        mock_run.return_value = _types.SendResult(success=True)
+    def _run_mock(coro: Any) -> Any:
+        coro.close()
+        return _types.SendResult(success=True)
+
+    with patch("asyncio.run", side_effect=_run_mock) as mock_run:
         res = dev.send_media_sync(payload)
         assert res.success
         assert mock_run.called

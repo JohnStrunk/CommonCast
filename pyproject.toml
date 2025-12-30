@@ -88,6 +88,11 @@ addopts = [
     "--cov-report=term",
     "--cov-report=xml",
 ]
+# https://docs.pytest.org/en/stable/how-to/capture-warnings.html#controlling-warnings
+filterwarnings = [
+    # Warnings should be treated as errors
+    "error",
+]
 
 [tool.ruff.format]
 docstring-code-format = true

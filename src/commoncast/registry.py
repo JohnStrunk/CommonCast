@@ -10,7 +10,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import commoncast.chromecast.adapter as _chromecast_adapter
 import commoncast.event as _events
@@ -320,6 +320,8 @@ class Registry:
             )
         else:
             _LOGGER.warning("Attempted to schedule task but loop is not running")
+            if asyncio.iscoroutine(coro):
+                cast(Any, coro).close()
 
     def register_media_payload(
         self, payload_id: str, media: _types.MediaPayload
