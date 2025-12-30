@@ -11,15 +11,11 @@ dev = [
 ]
 
 [project]
-name = "CommonCast"
-version = "0.1.0"
-description = "A unified API for casting images to devices"
 authors = [
     { name = "John Strunk", email = "john.strunk@gmail.com" }
 ]
-requires-python = ">=3.10"  # https://devguide.python.org/versions/
 classifiers = [  # https://pypi.org/classifiers/
-    "Development Status :: 1 - Planning",
+    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
     "Operating System :: OS Independent",
@@ -32,8 +28,13 @@ dependencies = [
     "aiohttp==3.13.2",
     "pychromecast==13.1.0",
 ]
+description = "A unified API for casting images to devices"
 license = "LGPL-3.0-only"
 license-files = ["LICENSE"]
+name = "CommonCast"
+readme = "README.md"
+requires-python = ">=3.10"  # https://devguide.python.org/versions/
+version = "0.1.0"
 
 [project.urls]
 Homepage = "https://github.com/JohnStrunk/CommonCast"
