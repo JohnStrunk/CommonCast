@@ -39,7 +39,7 @@ license-files = ["LICENSE"]
 Homepage = "https://github.com/JohnStrunk/CommonCast"
 
 [project.scripts]
-cc-discover = "commoncast.cli:main"
+cc-discover = "commoncast.cli.discover:main"
 
 [tool.coverage.html]
 directory = "htmlcov"

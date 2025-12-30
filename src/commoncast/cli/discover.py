@@ -1,7 +1,7 @@
-"""Command-line interface for CommonCast utilities.
+"""Command-line interface for CommonCast discovery.
 
-This module provides the entry point for the `cc-discover` command,
-which discovers and lists available casting devices on the network.
+This module provides the `cc-discover` command, which discovers and lists
+available casting devices on the network using the public CommonCast API.
 """
 
 import argparse
@@ -10,7 +10,7 @@ import logging
 import sys
 from typing import NoReturn
 
-from commoncast.registry import default_registry
+import commoncast
 
 # Configure logging to show only critical errors to avoid polluting output
 logging.basicConfig(level=logging.CRITICAL)
@@ -26,7 +26,7 @@ async def discover_devices(timeout: float) -> None:
     try:
         # Start the registry to begin background discovery tasks.
         # This initializes all enabled backend adapters (like Chromecast).
-        await default_registry.start()
+        await commoncast.start()
 
         # Wait for devices to respond. Discovery is asynchronous, so we need
         # to give the network time to traffic MDNS/SSDP packets.
@@ -34,10 +34,10 @@ async def discover_devices(timeout: float) -> None:
 
         # Get a snapshot of currently known devices.
         # This returns a list of Device objects known at this exact moment.
-        devices = default_registry.list_devices()
+        devices = commoncast.list_devices()
     finally:
         # Always stop the registry to clean up background tasks and network sockets.
-        await default_registry.stop()
+        await commoncast.stop()
 
     print(f"\nDiscovered {len(devices)} device(s):")
 
