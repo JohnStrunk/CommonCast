@@ -7,40 +7,44 @@ small, async-first surface with synchronous convenience wrappers.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from typing import Any
 
-from commoncast.events import (
-    DeviceAdded,
-    DeviceEvent,
-    DeviceHeartbeat,
-    DeviceRemoved,
-    DeviceUpdated,
-    MediaStatusUpdated,
-    VolumeUpdated,
-)
-from commoncast.registry import default_registry as _REGISTRY
-from commoncast.types import (
-    Capability,
-    Device,
-    DeviceID,
-    MediaController,
-    MediaImage,
-    MediaMetadata,
-    MediaPayload,
-    SendResult,
-    Subscription,
-)
+import commoncast.event as _event
+import commoncast.registry as _registry
+import commoncast.types as _types
+
+# Re-export types for public API
+BackendInfo = _registry.BackendInfo
+Capability = _types.Capability
+Device = _types.Device
+DeviceID = _types.DeviceID
+MediaController = _types.MediaController
+MediaImage = _types.MediaImage
+MediaMetadata = _types.MediaMetadata
+MediaPayload = _types.MediaPayload
+SendResult = _types.SendResult
+Subscription = _types.Subscription
+
+# Re-export events for public API
+DeviceAdded = _event.DeviceAdded
+DeviceEvent = _types.DeviceEvent
+DeviceHeartbeat = _event.DeviceHeartbeat
+DeviceRemoved = _event.DeviceRemoved
+DeviceUpdated = _event.DeviceUpdated
+MediaStatusUpdated = _event.MediaStatusUpdated
+VolumeUpdated = _event.VolumeUpdated
 
 
-def list_devices() -> list[Device]:
+def list_devices() -> list[_types.Device]:
     """Return a snapshot list of known devices (non-blocking).
 
     :returns: List of discovered Device instances.
     """
-    return _REGISTRY.list_devices()
+    return _registry.default_registry.list_devices()
 
 
-def subscribe(callback: Callable[[DeviceEvent], Awaitable[None]]) -> Subscription:
+def subscribe(
+    callback: Callable[[_event.DeviceEvent], Awaitable[None]],
+) -> _types.Subscription:
     """Register an async callback to receive DeviceEvent objects.
 
     The callback will be scheduled on the running event loop for each event.
@@ -48,24 +52,26 @@ def subscribe(callback: Callable[[DeviceEvent], Awaitable[None]]) -> Subscriptio
     :param callback: Async callable that accepts a DeviceEvent.
     :returns: Subscription handle with an unsubscribe() method.
     """
-    return _REGISTRY.subscribe(callback)
+    return _registry.default_registry.subscribe(callback)
 
 
-def subscribe_sync(callback: Callable[[DeviceEvent], None]) -> Subscription:
+def subscribe_sync(
+    callback: Callable[[_event.DeviceEvent], None],
+) -> _types.Subscription:
     """Register a synchronous callback executed on a threadpool for each event.
 
     :param callback: Synchronous callable that accepts a DeviceEvent.
     :returns: Subscription handle with an unsubscribe() method.
     """
-    return _REGISTRY.subscribe_sync(callback)
+    return _registry.default_registry.subscribe_sync(callback)
 
 
-def events() -> AsyncIterator[DeviceEvent]:
+def events() -> AsyncIterator[_event.DeviceEvent]:
     """Return an async iterator that yields DeviceEvent objects as they occur.
 
     :returns: Async iterator yielding DeviceEvent objects.
     """
-    return _REGISTRY.events()
+    return _registry.default_registry.events()
 
 
 async def start(*, media_host: str | None = "0.0.0.0", media_port: int = 0) -> None:
@@ -78,7 +84,7 @@ async def start(*, media_host: str | None = "0.0.0.0", media_port: int = 0) -> N
     :param media_port: Port to bind the media server to (0 selects a free port).
     :returns: None
     """
-    await _REGISTRY.start(media_host=media_host, media_port=media_port)
+    await _registry.default_registry.start(media_host=media_host, media_port=media_port)
 
 
 async def stop() -> None:
@@ -86,7 +92,7 @@ async def stop() -> None:
 
     :returns: None
     """
-    await _REGISTRY.stop()
+    await _registry.default_registry.stop()
 
 
 def start_sync(*, media_host: str | None = "0.0.0.0", media_port: int = 0) -> None:
@@ -97,7 +103,7 @@ def start_sync(*, media_host: str | None = "0.0.0.0", media_port: int = 0) -> No
     :param media_port: Port to bind the media server to (0 selects a free port).
     :returns: None
     """
-    _REGISTRY.start_sync(media_host=media_host, media_port=media_port)
+    _registry.default_registry.start_sync(media_host=media_host, media_port=media_port)
 
 
 def stop_sync() -> None:
@@ -105,7 +111,7 @@ def stop_sync() -> None:
 
     :returns: None
     """
-    _REGISTRY.stop_sync()
+    _registry.default_registry.stop_sync()
 
 
 def enable_backend(name: str) -> None:
@@ -114,7 +120,7 @@ def enable_backend(name: str) -> None:
     :param name: Backend name to enable.
     :returns: None
     """
-    _REGISTRY.enable_backend(name)
+    _registry.default_registry.enable_backend(name)
 
 
 def disable_backend(name: str) -> None:
@@ -123,18 +129,19 @@ def disable_backend(name: str) -> None:
     :param name: Backend name to disable.
     :returns: None
     """
-    _REGISTRY.disable_backend(name)
+    _registry.default_registry.disable_backend(name)
 
 
-def list_backends() -> Mapping[str, dict[str, Any]]:
+def list_backends() -> Mapping[str, BackendInfo]:
     """Return a mapping of available backends to their state information.
 
     :returns: Mapping of backend name to status information.
     """
-    return _REGISTRY.list_backends()
+    return _registry.default_registry.list_backends()
 
 
 __all__ = [
+    "BackendInfo",
     "Capability",
     "Device",
     "DeviceAdded",

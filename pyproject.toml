@@ -28,12 +28,18 @@ classifiers = [  # https://pypi.org/classifiers/
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "aiohttp==3.13.2",
+    "pychromecast==13.1.0",
+]
 license = "LGPL-3.0-only"
 license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/JohnStrunk/CommonCast"
+
+[project.scripts]
+cc-discover = "commoncast.cli.cc_discover:main"
 
 [tool.coverage.html]
 directory = "htmlcov"
@@ -81,6 +87,11 @@ addopts = [
     "--cov-report=html",
     "--cov-report=term",
     "--cov-report=xml",
+]
+# https://docs.pytest.org/en/stable/how-to/capture-warnings.html#controlling-warnings
+filterwarnings = [
+    # Warnings should be treated as errors
+    "error",
 ]
 
 [tool.ruff.format]

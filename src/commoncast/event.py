@@ -7,9 +7,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from commoncast.types import Device, DeviceEvent, DeviceID
+import commoncast.types as _types
+
+if TYPE_CHECKING:
+    import commoncast.types as _types
+
+# Re-export DeviceID and DeviceEvent for convenience
+DeviceID = _types.DeviceID
+DeviceEvent = _types.DeviceEvent
 
 
 @dataclass
@@ -19,7 +26,7 @@ class DeviceAdded(DeviceEvent):
     :param device: The Device instance that was added.
     """
 
-    device: Device
+    device: _types.Device
 
 
 @dataclass
@@ -31,7 +38,7 @@ class DeviceUpdated(DeviceEvent):
         change set.
     """
 
-    device: Device
+    device: _types.Device
     changes: Mapping[str, Any]
 
 

@@ -6,16 +6,21 @@ from datetime import datetime, timezone
 
 import pytest
 
-from commoncast.events import DeviceEvent, DeviceHeartbeat, DeviceID
-from commoncast.registry import default_registry as registry
+import commoncast.event as _events
+import commoncast.registry as _registry
+import commoncast.types as _types
 
 
 @pytest.mark.asyncio
 async def test_registry_task_cleanup() -> None:
-    """Verify that completed tasks are removed from the registry."""
+    """Verify that completed tasks are removed from the registry.
+
+    :returns: None
+    """
+    registry = _registry.Registry()
 
     # Subscribe a dummy callback so tasks are created
-    async def dummy_callback(event: DeviceEvent) -> None:
+    async def dummy_callback(event: _types.DeviceEvent) -> None:
         pass
 
     registry.subscribe(dummy_callback)
@@ -24,8 +29,8 @@ async def test_registry_task_cleanup() -> None:
     for _ in range(100):
         # pylint: disable=protected-access
         await registry._publish_event(
-            DeviceHeartbeat(
-                timestamp=datetime.now(timezone.utc), device_id=DeviceID("dev1")
+            _events.DeviceHeartbeat(
+                timestamp=datetime.now(timezone.utc), device_id=_types.DeviceID("dev1")
             )
         )
 

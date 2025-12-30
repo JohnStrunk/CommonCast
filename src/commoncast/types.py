@@ -7,11 +7,12 @@ to avoid circular import issues.
 from __future__ import annotations
 
 import asyncio
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, NewType, Protocol, cast
+from typing import Any, NewType, cast
 
 # Strongly-typed device identifier
 DeviceID = NewType("DeviceID", str)
@@ -67,9 +68,10 @@ class MediaMetadata:
     extra: dict[str, Any] = field(default_factory=lambda: cast(dict[str, Any], {}))
 
 
-class MediaController(Protocol):
-    """Interface for controlling active media playback."""
+class MediaController(ABC):
+    """Abstract base class for controlling active media playback."""
 
+    @abstractmethod
     async def play(self) -> None:
         """Resume playback.
 
@@ -77,6 +79,7 @@ class MediaController(Protocol):
         """
         ...
 
+    @abstractmethod
     async def pause(self) -> None:
         """Pause playback.
 
@@ -84,6 +87,7 @@ class MediaController(Protocol):
         """
         ...
 
+    @abstractmethod
     async def stop(self) -> None:
         """Stop playback and clear the session.
 
@@ -91,6 +95,7 @@ class MediaController(Protocol):
         """
         ...
 
+    @abstractmethod
     async def seek(self, position: float) -> None:
         """Seek to a specific position in seconds.
 
@@ -99,6 +104,7 @@ class MediaController(Protocol):
         """
         ...
 
+    @abstractmethod
     async def set_volume(self, level: float) -> None:
         """Set the volume level.
 
@@ -107,6 +113,7 @@ class MediaController(Protocol):
         """
         ...
 
+    @abstractmethod
     async def set_mute(self, mute: bool) -> None:
         """Mute or unmute the device.
 
@@ -311,7 +318,7 @@ class Device:
                   a MediaController.
         """
         # Lazy import to avoid circular dependencies
-        from commoncast.registry import default_registry  # noqa: PLC0415
+        import commoncast.registry as _registry  # noqa: PLC0415
 
         # Backfill legacy title into metadata if not present
         if title and not media.metadata:
@@ -319,7 +326,7 @@ class Device:
         elif title and media.metadata and not media.metadata.title:
             media.metadata.title = title
 
-        return await default_registry.send_media(
+        return await _registry.default_registry.send_media(
             self, media, format=format, timeout=timeout, options=options
         )
 
@@ -373,7 +380,49 @@ class Subscription:
         self._unsubscribe()
 
 
+class BackendAdapter(ABC):
+    """Abstract base class for backend adapters."""
+
+    @abstractmethod
+    async def start(self) -> None:
+        """Start the backend adapter.
+
+        :returns: None
+        """
+        ...
+
+    @abstractmethod
+    async def stop(self) -> None:
+        """Stop the backend adapter.
+
+        :returns: None
+        """
+        ...
+
+    @abstractmethod
+    async def send_media(
+        self,
+        device: Device,
+        media: MediaPayload,
+        *,
+        format: str | None = None,
+        timeout: float = 30.0,
+        options: dict[str, Any] | None = None,
+    ) -> SendResult:
+        """Send media to a device.
+
+        :param device: Target Device.
+        :param media: MediaPayload to send.
+        :param format: Optional format hint.
+        :param timeout: Operation timeout in seconds.
+        :param options: Optional transport-specific options.
+        :returns: SendResult describing the outcome.
+        """
+        ...
+
+
 __all__ = [
+    "BackendAdapter",
     "Capability",
     "Device",
     "DeviceEvent",

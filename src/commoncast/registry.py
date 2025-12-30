@@ -7,25 +7,28 @@ subscriptions, backends, and event publication.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict, cast
 
-from commoncast.events import (
-    DeviceAdded,
-    DeviceEvent,
-    DeviceID,
-    DeviceRemoved,
-)
-from commoncast.types import (
-    Device,
-    MediaPayload,
-    SendResult,
-    Subscription,
-)
+import commoncast.chromecast.adapter as _chromecast_adapter
+import commoncast.event as _events
+import commoncast.server as _server
+import commoncast.types as _types
+
+_LOGGER = logging.getLogger(__name__)
 
 
-def _safe_call_sync(cb: Callable[[DeviceEvent], None], ev: DeviceEvent) -> None:
+class BackendInfo(TypedDict, total=False):
+    """Configuration for a backend adapter."""
+
+    enabled: bool
+
+
+def _safe_call_sync(
+    cb: Callable[[_events.DeviceEvent], None], ev: _events.DeviceEvent
+) -> None:
     """Call a synchronous subscriber safely on a background thread.
 
     Exceptions are swallowed to avoid propagating user errors into the
@@ -56,17 +59,20 @@ class Registry:
 
         :returns: None
         """
-        self._devices: dict[DeviceID, Device] = {}
-        self._event_queue: asyncio.Queue[DeviceEvent] = asyncio.Queue()
-        self._subscribers: list[Callable[[DeviceEvent], Awaitable[None]]] = []
-        self._subscribers_sync: list[Callable[[DeviceEvent], None]] = []
-        self._backends: dict[str, dict[str, Any]] = {}
+        self._devices: dict[_events.DeviceID, _types.Device] = {}
+        self._event_queue: asyncio.Queue[_events.DeviceEvent] = asyncio.Queue()
+        self._subscribers: list[Callable[[_events.DeviceEvent], Awaitable[None]]] = []
+        self._subscribers_sync: list[Callable[[_events.DeviceEvent], None]] = []
+        self._backends: dict[str, BackendInfo] = {}
+        self._adapters: dict[str, _types.BackendAdapter] = {}
+        self._media_server: _server.MediaServer | None = None
         # Use a set to hold strong references to background tasks
-        self._tasks: set[asyncio.Task[Any]] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
         self._running = False
         self._lock = asyncio.Lock()
+        self._loop: asyncio.AbstractEventLoop | None = None
 
-    def list_devices(self) -> list[Device]:
+    def list_devices(self) -> list[_types.Device]:
         """Return a snapshot list of currently-known devices.
 
         :returns: List of Device objects currently tracked by the registry.
@@ -74,8 +80,8 @@ class Registry:
         return list(self._devices.values())
 
     def subscribe(
-        self, callback: Callable[[DeviceEvent], Awaitable[None]]
-    ) -> Subscription:
+        self, callback: Callable[[_events.DeviceEvent], Awaitable[None]]
+    ) -> _types.Subscription:
         """Register an async callback to receive DeviceEvent objects.
 
         The callback is scheduled on the running event loop for each event.
@@ -91,9 +97,11 @@ class Registry:
             except ValueError:
                 pass
 
-        return Subscription(_unsubscribe)
+        return _types.Subscription(_unsubscribe)
 
-    def subscribe_sync(self, callback: Callable[[DeviceEvent], None]) -> Subscription:
+    def subscribe_sync(
+        self, callback: Callable[[_events.DeviceEvent], None]
+    ) -> _types.Subscription:
         """Register a synchronous callback executed on a threadpool for each event.
 
         :param callback: Synchronous callable that accepts a DeviceEvent.
@@ -107,9 +115,9 @@ class Registry:
             except ValueError:
                 pass
 
-        return Subscription(_unsubscribe)
+        return _types.Subscription(_unsubscribe)
 
-    async def events(self) -> AsyncIterator[DeviceEvent]:
+    async def events(self) -> AsyncIterator[_events.DeviceEvent]:
         """Async iterator that yields DeviceEvent objects as they occur.
 
         Use this for pull-style consumption of registry events.
@@ -136,7 +144,36 @@ class Registry:
             if self._running:
                 return
             self._running = True
-            # In a full implementation adapters would start here.
+            self._loop = asyncio.get_running_loop()
+
+            if media_host is not None:
+                self._media_server = _server.MediaServer(
+                    host=media_host, port=media_port
+                )
+                await self._media_server.start()
+
+            # Enable chromecast by default if not explicitly disabled
+            if self._backends.get("chromecast", {}).get("enabled", True):
+                await self._start_adapter("chromecast")
+
+            for name, info in self._backends.items():
+                if name == "chromecast":
+                    continue
+                if info.get("enabled"):
+                    await self._start_adapter(name)
+
+    async def _start_adapter(self, name: str) -> None:
+        """Start a named adapter if it exists and is not already running.
+
+        :param name: The name of the adapter to start.
+        """
+        if name in self._adapters:
+            return
+
+        if name == "chromecast":
+            adapter = _chromecast_adapter.ChromecastAdapter(self)
+            self._adapters[name] = adapter
+            await adapter.start()
 
     async def stop(self) -> None:
         """Stop discovery, shut down adapters and clear tracked devices.
@@ -150,25 +187,45 @@ class Registry:
             if not self._running:
                 return
             self._running = False
+
+            # Stop all adapters
+            for adapter in self._adapters.values():
+                await adapter.stop()
+            self._adapters.clear()
+
+            if self._media_server:
+                await self._media_server.stop()
+                self._media_server = None
+
             # Emit DeviceRemoved for all devices
             now = datetime.now(timezone.utc)
             for device_id in list(self._devices.keys()):
-                ev = DeviceRemoved(
+                ev = _events.DeviceRemoved(
                     timestamp=now, device_id=device_id, reason="shutdown"
                 )
                 await self._publish_event(ev)
             self._devices.clear()
 
-    def start_sync(self, *args: Any, **kwargs: Any) -> None:
+            # Wait for all background tasks to finish (e.g. event delivery)
+            if self._tasks:
+                await asyncio.gather(*self._tasks, return_exceptions=True)
+                self._tasks.clear()
+
+            self._loop = None
+
+    def start_sync(
+        self, *, media_host: str | None = "0.0.0.0", media_port: int = 0
+    ) -> None:
         """Start the registry synchronously.
 
         Convenience wrapper for start() for consumers that prefer blocking APIs.
 
-        :param args: Positional arguments passed to start().
-        :param kwargs: Keyword arguments passed to start().
+        :param media_host: Host interface to bind the media server to, or None to
+            disable the embedded server.
+        :param media_port: Port to bind the media server to (0 selects a free port).
         :returns: None
         """
-        asyncio.run(self.start(*args, **kwargs))
+        asyncio.run(self.start(media_host=media_host, media_port=media_port))
 
     def stop_sync(self) -> None:
         """Stop the registry synchronously.
@@ -198,14 +255,14 @@ class Registry:
         info = self._backends.setdefault(name, {})
         info["enabled"] = False
 
-    def list_backends(self) -> dict[str, dict[str, Any]]:
+    def list_backends(self) -> dict[str, BackendInfo]:
         """Return a mapping of backend names to their state information.
 
         :returns: Dictionary mapping backend names to their status info.
         """
         return dict(self._backends)
 
-    async def _publish_event(self, ev: DeviceEvent) -> None:
+    async def _publish_event(self, ev: _events.DeviceEvent) -> None:
         """Publish an event to subscribers and the async iterator queue.
 
         :param ev: The DeviceEvent to publish.
@@ -218,7 +275,7 @@ class Registry:
             try:
                 # schedule but don't await to avoid blocking; store task to avoid GC
                 # Use ensure_future to handle general Awaitables
-                task: asyncio.Task[Any] = asyncio.ensure_future(cb(ev))
+                task: asyncio.Task[None] = asyncio.ensure_future(cb(ev))
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
             except Exception:
@@ -230,16 +287,14 @@ class Registry:
 
     async def send_media(
         self,
-        device: Device,
-        media: MediaPayload,
+        device: _types.Device,
+        media: _types.MediaPayload,
         *,
         format: str | None = None,
         timeout: float = 30.0,
         options: dict[str, Any] | None = None,
-    ) -> SendResult:
+    ) -> _types.SendResult:
         """Send media to a device by delegating to adapters.
-
-        This minimal implementation simulates success for known devices.
 
         :param device: Target Device.
         :param media: MediaPayload to send.
@@ -248,30 +303,74 @@ class Registry:
         :param options: Optional transport-specific options.
         :returns: SendResult describing the outcome.
         """
-        # Minimal behavior: accept anything and return success if device known
         if device.id not in self._devices:
-            return SendResult(success=False, reason="device_unknown")
-        # In real implementation, this would route to the adapter based on device.transport
-        await asyncio.sleep(0)  # yield control
+            return _types.SendResult(success=False, reason="device_unknown")
 
-        # Return success with no controller for now, as we have no real backends
-        return SendResult(
-            success=True,
-            metadata={"device_id": device.id},
-            controller=None,
+        adapter = self._adapters.get(device.transport)
+        if not adapter:
+            return _types.SendResult(success=False, reason="adapter_not_available")
+
+        return await adapter.send_media(
+            device, media, format=format, timeout=timeout, options=options
         )
 
-    async def _add_device(self, device: Device) -> None:
-        """Inject a device into the registry (helper for tests/examples).
+    def schedule_task(self, coro: Awaitable[None]) -> None:
+        """Schedule a coroutine to run on the registry's event loop (thread-safe).
+
+        :param coro: The coroutine to schedule.
+        :returns: None
+        """
+        if self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(
+                lambda: self._tasks.add(asyncio.ensure_future(coro))
+            )
+        else:
+            _LOGGER.warning("Attempted to schedule task but loop is not running")
+            if asyncio.iscoroutine(coro):
+                cast(Any, coro).close()
+
+    def register_media_payload(
+        self, payload_id: str, media: _types.MediaPayload
+    ) -> str | None:
+        """Register a media payload with the embedded media server.
+
+        :param payload_id: Unique identifier for the payload.
+        :param media: The media payload to register.
+        :returns: The URL to the payload if successful, else None.
+        """
+        if self._media_server:
+            return self._media_server.register_payload(payload_id, media)
+        return None
+
+    async def register_device(self, device: _types.Device) -> None:
+        """Inject a device into the registry.
 
         :param device: Device to add into the registry.
         :returns: None
         """
         self._devices[device.id] = device
-        ev = DeviceAdded(timestamp=datetime.now(timezone.utc), device=device)
+        ev = _events.DeviceAdded(timestamp=datetime.now(timezone.utc), device=device)
         await self._publish_event(ev)
+
+    async def unregister_device(
+        self, device_id: _events.DeviceID, reason: str = "lost"
+    ) -> None:
+        """Remove a device from the registry.
+
+        :param device_id: Identifier of the device to remove.
+        :param reason: Reason for removal.
+        :returns: None
+        """
+        if device_id in self._devices:
+            self._devices.pop(device_id)
+            ev = _events.DeviceRemoved(
+                timestamp=datetime.now(timezone.utc),
+                device_id=device_id,
+                reason=reason,
+            )
+            await self._publish_event(ev)
 
 
 default_registry = Registry()
 
-__all__ = ["Registry", "default_registry"]
+__all__ = ["BackendInfo", "Registry", "default_registry"]
