@@ -21,6 +21,10 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files  # Prevents giant files from being committed
+        exclude: |
+          (?x)^(
+                docs/specs/.*
+            )$
       - id: check-docstring-first    # Prevent code before docstring
       - id: check-json               # Check that JSON files are valid
         exclude: |
