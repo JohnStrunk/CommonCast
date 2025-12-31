@@ -12,9 +12,6 @@ from typing import NoReturn
 
 import commoncast
 
-# Configure logging to show only critical errors to avoid polluting output
-logging.basicConfig(level=logging.CRITICAL)
-
 
 async def discover_devices(timeout: float) -> None:
     """Run discovery and print results.
@@ -85,8 +82,28 @@ def main() -> NoReturn:
         default=15.0,
         help="Discovery timeout in seconds (default: 15.0)",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase output verbosity (e.g., -v for INFO, -vv for DEBUG)",
+    )
 
     args = parser.parse_args()
+
+    # Configure logging
+    log_level = logging.CRITICAL
+    if args.verbose == 1:
+        log_level = logging.INFO
+    elif args.verbose >= 2:  # noqa: PLR2004
+        log_level = logging.DEBUG
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,
+    )
 
     try:
         asyncio.run(discover_devices(args.timeout))

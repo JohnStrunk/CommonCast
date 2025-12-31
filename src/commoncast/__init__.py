@@ -6,11 +6,15 @@ small, async-first surface with synchronous convenience wrappers.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 
 import commoncast.event as _event
 import commoncast.registry as _registry
 import commoncast.types as _types
+
+# Set up logging for the library
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 # Re-export types for public API
 BackendInfo = _registry.BackendInfo

@@ -82,6 +82,7 @@ class MediaServer:
 
         :returns: None
         """
+        _LOGGER.info("Stopping media server")
         if self._site:
             await self._site.stop()
             self._site = None
@@ -100,6 +101,7 @@ class MediaServer:
         """
         if self._base_url is None:
             raise RuntimeError("Media server not started")
+        _LOGGER.debug("Registering payload: %s", payload_id)
         self._payloads[payload_id] = payload
         return f"{self._base_url}/{payload_id}"
 
@@ -109,6 +111,7 @@ class MediaServer:
         :param payload_id: The identifier of the payload to unregister.
         :returns: None
         """
+        _LOGGER.debug("Unregistering payload: %s", payload_id)
         self._payloads.pop(payload_id, None)
 
     async def _handle_media(self, request: web.Request) -> web.StreamResponse:
@@ -118,9 +121,13 @@ class MediaServer:
         :returns: aiohttp Response or FileResponse.
         """
         payload_id = request.match_info["id"]
+        _LOGGER.info(
+            "Handling media request for ID: %s from %s", payload_id, request.remote
+        )
         payload = self._payloads.get(payload_id)
 
         if not payload:
+            _LOGGER.warning("Media not found for ID: %s", payload_id)
             return web.Response(status=404, text="Media not found")
 
         if payload.url:

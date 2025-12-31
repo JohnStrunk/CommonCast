@@ -77,7 +77,7 @@ def test_main_success() -> None:
         patch("asyncio.run", side_effect=_run_mock) as mock_run,
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
-        mock_args.return_value = MagicMock(timeout=5.0)
+        mock_args.return_value = MagicMock(timeout=5.0, verbose=0)
 
         with pytest.raises(SystemExit):
             main()
@@ -98,7 +98,7 @@ def test_main_keyboard_interrupt(capsys: CaptureFixture[str]) -> None:
         patch("asyncio.run", side_effect=_run_mock),
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
-        mock_args.return_value = MagicMock(timeout=5.0)
+        mock_args.return_value = MagicMock(timeout=5.0, verbose=0)
 
         with pytest.raises(SystemExit):
             main()
@@ -120,7 +120,7 @@ def test_main_exception(capsys: CaptureFixture[str]) -> None:
         patch("asyncio.run", side_effect=_run_mock),
         patch("sys.exit", side_effect=SystemExit) as mock_exit,
     ):
-        mock_args.return_value = MagicMock(timeout=5.0)
+        mock_args.return_value = MagicMock(timeout=5.0, verbose=0)
 
         with pytest.raises(SystemExit):
             main()
@@ -128,3 +128,34 @@ def test_main_exception(capsys: CaptureFixture[str]) -> None:
         mock_exit.assert_called_with(1)
         captured = capsys.readouterr()
         assert "Error during discovery: something went wrong" in captured.err
+
+
+@pytest.mark.parametrize(
+    "verbose_count,expected_level",
+    [
+        (0, 50),  # CRITICAL
+        (1, 20),  # INFO
+        (2, 10),  # DEBUG
+        (3, 10),  # DEBUG (more than 2 stays at DEBUG)
+    ],
+)
+def test_main_verbosity(verbose_count: int, expected_level: int) -> None:
+    """Test main function configures logging level based on verbosity."""
+
+    def _run_mock(coro: Any) -> None:
+        coro.close()
+
+    with (
+        patch("argparse.ArgumentParser.parse_args") as mock_args,
+        patch("asyncio.run", side_effect=_run_mock),
+        patch("sys.exit", side_effect=SystemExit),
+        patch("logging.basicConfig") as mock_logging,
+    ):
+        mock_args.return_value = MagicMock(timeout=5.0, verbose=verbose_count)
+
+        with pytest.raises(SystemExit):
+            main()
+
+        # Check that basicConfig was called with the expected level
+        # kwargs is the second element of call_args
+        assert mock_logging.call_args[1]["level"] == expected_level
