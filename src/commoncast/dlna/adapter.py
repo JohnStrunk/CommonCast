@@ -152,6 +152,15 @@ class DlnaAdapter(_types.BackendAdapter):
         :param dtype: Device type string.
         :param source: Source of the advertisement.
         """
+        if source == SsdpSource.ADVERTISEMENT_BYEBYE:
+            if device.udn in self._discovered_devices:
+                _LOGGER.info("DLNA device lost: %s", device.udn)
+                self._discovered_devices.pop(device.udn)
+                await self._registry.unregister_device(
+                    _types.DeviceID(device.udn), reason="lost"
+                )
+            return
+
         # We assume 'location' property exists or we iterate locations
         location = device.location
         if not location:
