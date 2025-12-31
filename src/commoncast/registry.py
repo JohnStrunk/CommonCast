@@ -155,12 +155,14 @@ class Registry:
                 )
                 await self._media_server.start()
 
-            # Enable chromecast by default if not explicitly disabled
-            if self._backends.get("chromecast", {}).get("enabled", True):
-                await self._start_adapter("chromecast")
+            # Start all default backends if not explicitly disabled
+            for name in ["chromecast", "dial", "dlna"]:
+                if self._backends.get(name, {}).get("enabled", True):
+                    await self._start_adapter(name)
 
+            # Start any other backends that were explicitly enabled
             for name, info in self._backends.items():
-                if name == "chromecast":
+                if name in ["chromecast", "dial", "dlna"]:
                     continue
                 if info.get("enabled"):
                     await self._start_adapter(name)
