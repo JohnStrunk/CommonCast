@@ -92,7 +92,8 @@ repos:
           (?x)^(
                 .github/pull_request_template.md |
                 .github/skills/.*/SKILL.md |
-                CLAUDE.md
+                CLAUDE.md |
+                docs/specs/.*
             )$
 
   - repo: https://github.com/Mergifyio/mergify-pre-commit
