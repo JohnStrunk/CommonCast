@@ -25,7 +25,7 @@ classifiers = [  # https://pypi.org/classifiers/
     "Typing :: Typed",
 ]
 dependencies = [
-    "aiohttp==3.13.2",
+    "aiohttp==3.13.3",
     "async-upnp-client==0.46.2",
     "pychromecast==13.1.0",
 ]
