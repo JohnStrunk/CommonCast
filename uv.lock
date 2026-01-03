@@ -165,7 +165,7 @@ wheels = [
 
 [[package]]
 name = "async-upnp-client"
-version = "0.46.1"
+version = "0.46.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -173,9 +173,9 @@ dependencies = [
     { name = "python-didl-lite" },
     { name = "voluptuous" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/62/56/f8ad030c0e2b6701ac0e7a373fd9890c9a6ee311f33e4dbc30f2d05c3971/async_upnp_client-0.46.1.tar.gz", hash = "sha256:0522de1e01b010a09663e2c444ab573c5aec46cc8065b453ed0b4df36b3ab1f3", size = 98066, upload-time = "2025-12-12T16:54:47.961Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/71/1ae4bd9d5b3d755a6f0d1c1a4ef2bedda3f6b3abd518062a2cc1cfbed720/async_upnp_client-0.46.2.tar.gz", hash = "sha256:c19bdf81627fbed809763c40e60d1d28bbf22663e439f5aa0185c688ea3df3b6", size = 98076, upload-time = "2026-01-03T10:41:19.456Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/cc/76f91391b25844076338ef30ecbd2a2984292324bb8d5f03b1c9e69589be/async_upnp_client-0.46.1-py3-none-any.whl", hash = "sha256:4bd520762d9f83b1ed03d1677a5325e7720e2c6c7037254b4f3843d44b207cc9", size = 90022, upload-time = "2025-12-12T16:54:46.446Z" },
+    { url = "https://files.pythonhosted.org/packages/36/7d/8a53647d0fc1e3b9395dabe5ea8816f07f6f043e45f61eb41e2a6be571bd/async_upnp_client-0.46.2-py3-none-any.whl", hash = "sha256:3754717e73003d2680afed1c46a21692e1c22dfab3158be93fa2a9d06ef4d176", size = 90021, upload-time = "2026-01-03T10:41:18.163Z" },
 ]
 
 [[package]]
@@ -336,7 +336,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = "==3.13.2" },
-    { name = "async-upnp-client", specifier = "==0.46.1" },
+    { name = "async-upnp-client", specifier = "==0.46.2" },
     { name = "pychromecast", specifier = "==13.1.0" },
 ]
 
@@ -999,14 +999,14 @@ wheels = [
 
 [[package]]
 name = "python-didl-lite"
-version = "1.4.1"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/0a/01ec612e1585accad47edfd15d7281006f2906811353524d172825c3f3b9/python_didl_lite-1.4.1.tar.gz", hash = "sha256:68f085b965bde12c0cbc4a068c1fb4c22c58c8f119b1851630896fced7201dc4", size = 16123, upload-time = "2024-11-03T12:35:41.642Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/95/34675b3a6be5de413921f288b823e64ca9528ac702c0c37ae5ed7e269343/python_didl_lite-1.5.0.tar.gz", hash = "sha256:6ed1c8db01426a4c282b1b810bb7d9ebb3abec7ea832e48e89972544568caec1", size = 17503, upload-time = "2026-01-03T10:32:40.656Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/40/af7eca988f678b1b19f2b49438525a349b873a44510d80dc3ccb2e22f444/python_didl_lite-1.4.1-py3-none-any.whl", hash = "sha256:5ef9d09821db80b1fbbb8f999219b33b57b91fd1f49f5d8dbd8cb0ad357e7ce0", size = 13025, upload-time = "2024-11-03T12:35:40.266Z" },
+    { url = "https://files.pythonhosted.org/packages/13/24/a5f4a5e69cac8eb3be721a2b3271042fc8b785eb696f1c58ef79c5b003f9/python_didl_lite-1.5.0-py3-none-any.whl", hash = "sha256:88023b04458019e88cc3c64445a1da4d11bae0fbe1cd96f49888e53862610a97", size = 13686, upload-time = "2026-01-03T10:32:39.4Z" },
 ]
 
 [[package]]
