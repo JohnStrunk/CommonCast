@@ -9,9 +9,10 @@ import asyncio
 import logging
 import mimetypes
 import uuid
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import pychromecast  # type: ignore
+from zeroconf.asyncio import AsyncZeroconf
 
 import commoncast.types as _types
 
@@ -89,6 +90,7 @@ class ChromecastAdapter(_types.BackendAdapter):
         """
         self._registry = registry
         self._browser: Any | None = None
+        self._aiozconf: AsyncZeroconf | None = None
         self._discovered_casts: dict[uuid.UUID, Any] = {}
 
     async def start(self) -> None:
@@ -103,12 +105,23 @@ class ChromecastAdapter(_types.BackendAdapter):
 
         # pychromecast.get_chromecasts is synchronous and starts discovery
         # We'll use the browser for continuous discovery
-        self._browser = pychromecast.CastBrowser(
-            pychromecast.SimpleCastListener(
-                self._on_device_found, self._on_device_lost, self._on_device_updated
+        # AsyncZeroconf is required for MDNS discovery to work correctly in asyncio applications
+        try:
+            self._aiozconf = AsyncZeroconf()
+            self._browser = pychromecast.CastBrowser(
+                pychromecast.SimpleCastListener(
+                    self._on_device_found, self._on_device_lost, self._on_device_updated
+                ),
+                self._aiozconf.zeroconf,
             )
-        )
-        self._browser.start_discovery()
+        except Exception:
+            _LOGGER.exception(
+                "Failed to create AsyncZeroconf instance for Chromecast discovery"
+            )
+            return
+
+        # pychromecast methods start background threads and perform I/O
+        await asyncio.to_thread(self._browser.start_discovery)
 
     async def stop(self) -> None:
         """Stop Chromecast discovery.
@@ -116,8 +129,18 @@ class ChromecastAdapter(_types.BackendAdapter):
         :returns: None
         """
         if self._browser:
-            self._browser.stop_discovery()
+            _LOGGER.debug("Stopping Chromecast discovery")
+            # stop_discovery joins threads and closes the zeroconf instance synchronously.
+            # We run it in a thread to avoid blocking the event loop and to prevent
+            # zeroconf from warning about blocking I/O on the loop.
+            await asyncio.to_thread(self._browser.stop_discovery)
             self._browser = None
+
+        if self._aiozconf:
+            # properly close the AsyncZeroconf instance
+            await self._aiozconf.async_close()
+            self._aiozconf = None
+
         self._discovered_casts.clear()
 
     def _on_device_found(self, uuid_val: uuid.UUID, name: str) -> None:
@@ -128,10 +151,8 @@ class ChromecastAdapter(_types.BackendAdapter):
         """
         _LOGGER.info("Chromecast found: %s (%s)", name, uuid_val)
         if self._browser:
-            cast_device = self._browser.devices[uuid_val]
-            self._discovered_casts[uuid_val] = cast(
-                Any, pychromecast
-            ).get_chromecast_from_cast_info(cast_device, self._browser.zc)
+            cast_info = self._browser.devices[uuid_val]
+            self._discovered_casts[uuid_val] = cast_info
             self._register_device(uuid_val)
 
     def _on_device_lost(self, uuid_val: uuid.UUID, name: str) -> None:
@@ -157,8 +178,10 @@ class ChromecastAdapter(_types.BackendAdapter):
         :param name: Name of the device.
         """
         _LOGGER.debug("Chromecast updated: %s (%s)", name, uuid_val)
-        # Re-register if needed
-        self._register_device(uuid_val)
+        if self._browser:
+            cast_info = self._browser.devices[uuid_val]
+            self._discovered_casts[uuid_val] = cast_info
+            self._register_device(uuid_val)
 
     def _register_device(self, uuid_val: uuid.UUID) -> None:
         """Register or update a device in the registry.
@@ -187,14 +210,21 @@ class ChromecastAdapter(_types.BackendAdapter):
 
         # In a real implementation, we'd check cast_device.cast_type
         # for more specific capabilities (e.g. Audio only for Chromecast Audio)
-        if cast_device.cast_type == "audio":
+        # Handle both Chromecast objects and CastInfo namedtuples
+        cast_type = getattr(cast_device, "cast_type", None)
+        if cast_type == "audio":
             capabilities = {_types.Capability("audio")}
             media_types = {t for t in media_types if t.startswith("audio/")}
 
+        name = getattr(cast_device, "name", None) or getattr(
+            cast_device, "friendly_name", "Unknown Chromecast"
+        )
+        model = getattr(cast_device, "model_name", "Unknown Model")
+
         device = _types.Device(
             id=_types.DeviceID(str(uuid_val)),
-            name=cast_device.name,
-            model=cast_device.model_name,
+            name=name,
+            model=model,
             transport="chromecast",
             capabilities=capabilities,
             transport_info={"uuid": str(uuid_val)},
@@ -228,8 +258,18 @@ class ChromecastAdapter(_types.BackendAdapter):
             return _types.SendResult(success=False, reason="device_not_found")
 
         try:
+            # If we only have CastInfo, create the Chromecast object now
+            if not hasattr(cast_device, "wait"):
+                _LOGGER.info("Connecting to Chromecast: %s", device.name)
+                cast_device = await asyncio.to_thread(
+                    pychromecast.get_chromecast_from_cast_info,  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                    cast_device,
+                    self._aiozconf.zeroconf if self._aiozconf else None,
+                )
+                self._discovered_casts[cast_uuid] = cast_device
+
             # Wait for connection
-            await asyncio.to_thread(cast_device.wait)
+            await asyncio.to_thread(cast_device.wait)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 
             url = media.url
             if not url:
@@ -251,7 +291,10 @@ class ChromecastAdapter(_types.BackendAdapter):
 
             # Start the default media receiver
             await asyncio.to_thread(
-                cast_device.media_controller.play_media, url, mime_type, title=title
+                cast_device.media_controller.play_media,  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                url,
+                mime_type,
+                title=title,
             )
 
             return _types.SendResult(
