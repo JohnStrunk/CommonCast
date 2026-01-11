@@ -4,14 +4,28 @@ import asyncio
 import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from typing import Any, NamedTuple
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import commoncast.chromecast.adapter as _chromecast_adapter
 import commoncast.registry as _registry
 import commoncast.types as _types
+
+
+# Mock CastInfo NamedTuple to satisfy pyright
+class MockCastInfo(NamedTuple):
+    """Mock CastInfo for testing."""
+
+    services: list[Any]
+    uuid: uuid.UUID
+    model_name: str
+    friendly_name: str
+    host: str
+    port: int
+    cast_type: str
+    manufacturer: str
 
 
 @pytest.fixture
@@ -52,12 +66,27 @@ async def test_adapter_discovery(
     registry._loop = asyncio.get_running_loop()  # type: ignore[reportPrivateUsage]
 
     with (
+        patch("commoncast.chromecast.adapter.AsyncZeroconf") as mock_aiozc_class,
         patch("pychromecast.CastBrowser") as mock_browser_class,
         patch("pychromecast.get_chromecast_from_cast_info") as mock_get_cast,
     ):
+        mock_aiozc = mock_aiozc_class.return_value
+        mock_aiozc.zeroconf = MagicMock()
+        mock_aiozc.async_close = AsyncMock()
         mock_browser = mock_browser_class.return_value
         mock_get_cast.return_value = mock_cast
-        mock_browser.devices = {mock_cast.uuid: MagicMock()}
+        # During discovery, it uses what's in browser.devices (CastInfo-like)
+        mock_cast_info = MockCastInfo(
+            services=[],
+            uuid=mock_cast.uuid,
+            model_name=mock_cast.model_name,
+            friendly_name=mock_cast.name,
+            host="127.0.0.1",
+            port=8009,
+            cast_type=mock_cast.cast_type,
+            manufacturer="Google Inc.",
+        )
+        mock_browser.devices = {mock_cast.uuid: mock_cast_info}
 
         await adapter.start()
 
@@ -71,8 +100,8 @@ async def test_adapter_discovery(
         assert len(devices) == 1
         assert devices[0].name == "Test Chromecast"
         assert devices[0].transport == "chromecast"
-        assert "video/mp4" in devices[0].media_types
-        assert "image/jpeg" in devices[0].media_types
+        # get_chromecast_from_cast_info should NOT be called yet
+        mock_get_cast.assert_not_called()
 
         # Simulate device lost
         adapter._on_device_lost(mock_cast.uuid, mock_cast.name)  # type: ignore[reportPrivateUsage]
@@ -82,6 +111,7 @@ async def test_adapter_discovery(
         assert len(devices) == 0
 
         await adapter.stop()
+        mock_aiozc.async_close.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -98,12 +128,26 @@ async def test_adapter_updated(
     registry._loop = asyncio.get_running_loop()  # type: ignore[reportPrivateUsage]
 
     with (
+        patch("commoncast.chromecast.adapter.AsyncZeroconf") as mock_aiozc_class,
         patch("pychromecast.CastBrowser") as mock_browser_class,
         patch("pychromecast.get_chromecast_from_cast_info") as mock_get_cast,
     ):
+        mock_aiozc = mock_aiozc_class.return_value
+        mock_aiozc.async_close = AsyncMock()
         mock_browser = mock_browser_class.return_value
         mock_get_cast.return_value = mock_cast
-        mock_browser.devices = {mock_cast.uuid: MagicMock()}
+        # During discovery, it uses what's in browser.devices (CastInfo-like)
+        mock_cast_info = MockCastInfo(
+            services=[],
+            uuid=mock_cast.uuid,
+            model_name=mock_cast.model_name,
+            friendly_name=mock_cast.name,
+            host="127.0.0.1",
+            port=8009,
+            cast_type=mock_cast.cast_type,
+            manufacturer="Google Inc.",
+        )
+        mock_browser.devices = {mock_cast.uuid: mock_cast_info}
 
         await adapter.start()
 
@@ -136,12 +180,26 @@ async def test_adapter_audio_only(
     registry._loop = asyncio.get_running_loop()  # type: ignore[reportPrivateUsage]
 
     with (
+        patch("commoncast.chromecast.adapter.AsyncZeroconf") as mock_aiozc_class,
         patch("pychromecast.CastBrowser") as mock_browser_class,
         patch("pychromecast.get_chromecast_from_cast_info") as mock_get_cast,
     ):
+        mock_aiozc = mock_aiozc_class.return_value
+        mock_aiozc.async_close = AsyncMock()
         mock_browser = mock_browser_class.return_value
         mock_get_cast.return_value = mock_cast
-        mock_browser.devices = {mock_cast.uuid: MagicMock()}
+        # During discovery, it uses what's in browser.devices (CastInfo-like)
+        mock_cast_info = MockCastInfo(
+            services=[],
+            uuid=mock_cast.uuid,
+            model_name=mock_cast.model_name,
+            friendly_name=mock_cast.name,
+            host="127.0.0.1",
+            port=8009,
+            cast_type=mock_cast.cast_type,
+            manufacturer="Google Inc.",
+        )
+        mock_browser.devices = {mock_cast.uuid: mock_cast_info}
 
         await adapter.start()
         adapter._on_device_found(mock_cast.uuid, mock_cast.name)  # type: ignore[reportPrivateUsage]
@@ -169,7 +227,7 @@ async def test_send_media_missing_server(
     registry._loop = asyncio.get_running_loop()  # type: ignore[reportPrivateUsage]
     registry._media_server = None  # type: ignore[reportPrivateUsage]
 
-    # Pre-populate discovered casts
+    # Pre-populate discovered casts with a mock Chromecast object
     adapter._discovered_casts[mock_cast.uuid] = mock_cast  # type: ignore[reportPrivateUsage]
 
     device = _types.Device(
@@ -208,8 +266,19 @@ async def test_send_media_chromecast(
     registry._media_server = MagicMock()  # type: ignore[reportPrivateUsage]
     registry._media_server.register_payload.return_value = "http://fake/media"  # type: ignore[reportPrivateUsage]
 
-    # Pre-populate discovered casts
-    adapter._discovered_casts[mock_cast.uuid] = mock_cast  # type: ignore[reportPrivateUsage]
+    # Pre-populate discovered casts with a CastInfo-like mock to test on-demand connection
+    mock_cast_info = MockCastInfo(
+        services=[],
+        uuid=mock_cast.uuid,
+        model_name=mock_cast.model_name,
+        friendly_name=mock_cast.name,
+        host="127.0.0.1",
+        port=8009,
+        cast_type=mock_cast.cast_type,
+        manufacturer="Google Inc.",
+    )
+
+    adapter._discovered_casts[mock_cast.uuid] = mock_cast_info  # type: ignore[reportPrivateUsage]
 
     device = _types.Device(
         id=_types.DeviceID(str(mock_cast.uuid)),
@@ -225,7 +294,10 @@ async def test_send_media_chromecast(
     def _sync_to_thread(f: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return f(*args, **kwargs)
 
-    with patch("asyncio.to_thread", side_effect=_sync_to_thread):
+    with (
+        patch("asyncio.to_thread", side_effect=_sync_to_thread),
+        patch("pychromecast.get_chromecast_from_cast_info", return_value=mock_cast),
+    ):
         result = await adapter.send_media(device, payload)
 
         assert result.success
@@ -233,6 +305,8 @@ async def test_send_media_chromecast(
         mock_cast.media_controller.play_media.assert_called_once_with(
             "http://fake/media", "image/png", title="CommonCast Media"
         )
+        # Should have swapped the mock_cast_info for mock_cast in the dict
+        assert adapter._discovered_casts[mock_cast.uuid] == mock_cast  # type: ignore[reportPrivateUsage]
 
 
 @pytest.mark.asyncio
@@ -308,7 +382,12 @@ async def test_adapter_reentrant_start(
     :returns: None
     """
     adapter = _chromecast_adapter.ChromecastAdapter(registry)
-    with patch("pychromecast.CastBrowser") as mock_browser_class:
+    with (
+        patch("commoncast.chromecast.adapter.AsyncZeroconf") as mock_aiozc_class,
+        patch("pychromecast.CastBrowser") as mock_browser_class,
+    ):
+        mock_aiozc = mock_aiozc_class.return_value
+        mock_aiozc.async_close = AsyncMock()
         await adapter.start()
         await adapter.start()
         assert mock_browser_class.call_count == 1
@@ -337,7 +416,6 @@ async def test_send_media_guess_mime(
 
     :param registry: The Registry fixture.
     :param mock_cast: The mock_cast fixture.
-    :param tmp_path: The tmp_path fixture.
     :returns: None
     """
     adapter = _chromecast_adapter.ChromecastAdapter(registry)
@@ -417,3 +495,20 @@ async def test_media_controller(mock_cast: MagicMock) -> None:
 
         await controller.set_mute(True)
         mock_cast.set_volume_muted.assert_called_once_with(True)
+
+
+@pytest.mark.asyncio
+async def test_adapter_start_zeroconf_fail(registry: _registry.Registry) -> None:
+    """Test adapter start when Zeroconf fails to initialize.
+
+    :param registry: The Registry fixture.
+    :returns: None
+    """
+    adapter = _chromecast_adapter.ChromecastAdapter(registry)
+    with patch(
+        "commoncast.chromecast.adapter.AsyncZeroconf",
+        side_effect=Exception("bind failed"),
+    ):
+        await adapter.start()
+        assert adapter._browser is None  # type: ignore[reportPrivateUsage]
+        assert adapter._aiozconf is None  # type: ignore[reportPrivateUsage]
