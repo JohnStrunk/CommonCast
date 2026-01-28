@@ -5,7 +5,7 @@
     // This is using the base image because uv will manage the Python
     // installation
     "name": "Debian devcontainer",
-    "image": "mcr.microsoft.com/devcontainers/base:debian@sha256:30b0a0c004ca94d36c323ee993361a7e0ae25ea255ea125201e8a9587501c324",
+    "image": "mcr.microsoft.com/devcontainers/base:debian@sha256:0fea8c4b6512d8bb1a1419efb9cd0e6585a7a91d76c1cd44494a27849ef730fe",
     "runArgs": [
         "--net=host"
     ],
