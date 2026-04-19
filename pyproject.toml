@@ -26,7 +26,7 @@ classifiers = [  # https://pypi.org/classifiers/
 ]
 dependencies = [
     "aiohttp==3.13.5",
-    "async-upnp-client==0.46.2",
+    "async-upnp-client==0.47.0",
     "pychromecast==13.1.0",
 ]
 description = "A unified API for casting images to devices"
