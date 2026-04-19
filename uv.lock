@@ -161,7 +161,7 @@ wheels = [
 
 [[package]]
 name = "async-upnp-client"
-version = "0.46.2"
+version = "0.47.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -169,9 +169,9 @@ dependencies = [
     { name = "python-didl-lite" },
     { name = "voluptuous" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/71/1ae4bd9d5b3d755a6f0d1c1a4ef2bedda3f6b3abd518062a2cc1cfbed720/async_upnp_client-0.46.2.tar.gz", hash = "sha256:c19bdf81627fbed809763c40e60d1d28bbf22663e439f5aa0185c688ea3df3b6", size = 98076, upload-time = "2026-01-03T10:41:19.456Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/bf/d859564cd6691fe2fc8e6cab67c3a2f6c9d1b03344d82d057e4312c387ba/async_upnp_client-0.47.0.tar.gz", hash = "sha256:f4a3bc001bed786dd576947ceaf0075c3ed6f821a3c00866fc7e7e688ccef954", size = 97872, upload-time = "2026-04-19T20:22:14.619Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/7d/8a53647d0fc1e3b9395dabe5ea8816f07f6f043e45f61eb41e2a6be571bd/async_upnp_client-0.46.2-py3-none-any.whl", hash = "sha256:3754717e73003d2680afed1c46a21692e1c22dfab3158be93fa2a9d06ef4d176", size = 90021, upload-time = "2026-01-03T10:41:18.163Z" },
+    { url = "https://files.pythonhosted.org/packages/88/27/37f09d39fb4a7617a5ded95d1013b3a498c25857ca9445f3d8661f6e0ac6/async_upnp_client-0.47.0-py3-none-any.whl", hash = "sha256:a879b1041b03b347dcf009c243e084b9ecb19e9c521c39bd435438229dd99602", size = 89417, upload-time = "2026-04-19T20:22:13.271Z" },
 ]
 
 [[package]]
@@ -348,7 +348,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = "==3.13.5" },
-    { name = "async-upnp-client", specifier = "==0.46.2" },
+    { name = "async-upnp-client", specifier = "==0.47.0" },
     { name = "pychromecast", specifier = "==13.1.0" },
 ]
 
